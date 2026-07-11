@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>上机助手</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <h1>上机助手</h1>
+          <p id="statusText">未启动</p>
+        </div>
+        <span id="runBadge" class="badge">OFF</span>
+      </header>
+
+      <section class="controls">
+        <button id="startBtn" class="primary" type="button" title="开始监控">▶</button>
+        <button id="stopBtn" type="button" title="停止监控">■</button>
+        <button id="fetchBtn" type="button" title="拉取一次">↻</button>
+        <button id="claimBtn" type="button" title="提交匹配设备" disabled>✓</button>
+      </section>
+
+      <form id="settingsForm" class="form">
+        <label>
+          <span>roomCode</span>
+          <input id="roomCode" name="roomCode" autocomplete="off">
+        </label>
+        <div class="split">
+          <label>
+            <span>mode</span>
+            <input id="mode" name="mode" inputmode="numeric">
+          </label>
+          <label>
+            <span>间隔秒</span>
+            <input id="pollIntervalSeconds" name="pollIntervalSeconds" type="number" min="30" max="3600" step="1">
+          </label>
+        </div>
+        <label>
+          <span>指定机器</span>
+          <input id="preferredDevices" name="preferredDevices" placeholder="例：87 79 1762512935734323" autocomplete="off">
+        </label>
+        <label>
+          <span>captchaAction</span>
+          <input id="captchaAction" name="captchaAction" autocomplete="off">
+        </label>
+        <label class="toggle">
+          <input id="autoSubmit" name="autoSubmit" type="checkbox">
+          <span>自动提交上机</span>
+        </label>
+        <button id="saveBtn" type="submit">保存配置</button>
+      </form>
+
+      <section class="panel">
+        <div class="panel-title">
+          <h2>空闲设备</h2>
+          <span id="checkedAt">-</span>
+        </div>
+        <div id="devices" class="devices empty">暂无数据</div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">
+          <h2>日志</h2>
+          <span id="errorText"></span>
+        </div>
+        <div id="logs" class="logs empty">暂无日志</div>
+      </section>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -1,0 +1,172 @@
+const form = document.getElementById("settingsForm");
+const statusText = document.getElementById("statusText");
+const runBadge = document.getElementById("runBadge");
+const startBtn = document.getElementById("startBtn");
+const stopBtn = document.getElementById("stopBtn");
+const fetchBtn = document.getElementById("fetchBtn");
+const claimBtn = document.getElementById("claimBtn");
+const devicesEl = document.getElementById("devices");
+const logsEl = document.getElementById("logs");
+const checkedAt = document.getElementById("checkedAt");
+const errorText = document.getElementById("errorText");
+
+let currentState = null;
+
+document.addEventListener("DOMContentLoaded", async () => {
+  await refresh();
+  window.setInterval(refresh, 1000);
+});
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === "local" && (changes.runtime || changes.settings || changes.logs)) {
+    refresh();
+  }
+});
+
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await send("saveSettings", { settings: readForm() });
+  await refresh();
+});
+
+startBtn.addEventListener("click", async () => {
+  await send("saveSettings", { settings: readForm() });
+  await send("start");
+  await refresh();
+});
+
+stopBtn.addEventListener("click", async () => {
+  await send("stop");
+  await refresh();
+});
+
+fetchBtn.addEventListener("click", async () => {
+  await send("saveSettings", { settings: readForm() });
+  await send("pollOnce");
+  await refresh();
+});
+
+claimBtn.addEventListener("click", async () => {
+  const device = currentState?.runtime?.matchedDevice;
+  if (!device) {
+    return;
+  }
+  claimBtn.disabled = true;
+  await send("saveSettings", { settings: readForm() });
+  await send("claimDevice", { device });
+  await refresh();
+});
+
+async function refresh() {
+  const response = await send("getState");
+  currentState = response;
+  render(response);
+}
+
+async function send(type, payload = {}) {
+  return chrome.runtime.sendMessage({ type, ...payload });
+}
+
+function readForm() {
+  return {
+    roomCode: document.getElementById("roomCode").value,
+    mode: document.getElementById("mode").value,
+    captchaAction: document.getElementById("captchaAction").value,
+    pollIntervalSeconds: document.getElementById("pollIntervalSeconds").value,
+    preferredDevices: document.getElementById("preferredDevices").value,
+    autoSubmit: document.getElementById("autoSubmit").checked
+  };
+}
+
+function render(state) {
+  const settings = state.settings || {};
+  const runtime = state.runtime || {};
+  const logs = state.logs || [];
+
+  setValue("roomCode", settings.roomCode);
+  setValue("mode", settings.mode);
+  setValue("captchaAction", settings.captchaAction);
+  setValue("pollIntervalSeconds", settings.pollIntervalSeconds);
+  setValue("preferredDevices", settings.preferredDevices);
+  document.getElementById("autoSubmit").checked = Boolean(settings.autoSubmit);
+
+  statusText.textContent = runtime.lastStatus || "未启动";
+  checkedAt.textContent = runtime.lastCheckedAt ? formatTime(runtime.lastCheckedAt) : "-";
+  errorText.textContent = runtime.lastError || "";
+
+  runBadge.className = "badge";
+  if (runtime.running) {
+    runBadge.textContent = "ON";
+    runBadge.classList.add("on");
+  } else if (runtime.matchedDevice) {
+    runBadge.textContent = "HIT";
+    runBadge.classList.add("hit");
+  } else {
+    runBadge.textContent = "OFF";
+  }
+
+  claimBtn.disabled = !runtime.matchedDevice;
+  renderDevices(runtime.lastDevices || [], runtime.matchedDevice);
+  renderLogs(logs);
+}
+
+function setValue(id, value) {
+  const element = document.getElementById(id);
+  if (document.activeElement !== element) {
+    element.value = value ?? "";
+  }
+}
+
+function renderDevices(devices, matchedDevice) {
+  if (!devices.length) {
+    devicesEl.className = "devices empty";
+    devicesEl.textContent = "暂无数据";
+    return;
+  }
+
+  devicesEl.className = "devices";
+  devicesEl.textContent = "";
+  for (const device of devices.slice(0, 10)) {
+    const item = document.createElement("div");
+    item.className = "device";
+    const title = document.createElement("strong");
+    title.textContent = matchedDevice?.id === device.id ? `${device.title} · 匹配` : device.title;
+    const meta = document.createElement("span");
+    meta.textContent = `ID ${device.id} · ${device.status || "空闲"} · ${device.power || "-"}`;
+    item.append(title, meta);
+    devicesEl.append(item);
+  }
+}
+
+function renderLogs(logs) {
+  if (!logs.length) {
+    logsEl.className = "logs empty";
+    logsEl.textContent = "暂无日志";
+    return;
+  }
+
+  logsEl.className = "logs";
+  logsEl.textContent = "";
+  for (const log of logs.slice(0, 20)) {
+    const item = document.createElement("div");
+    item.className = `log ${log.level || ""}`;
+    const title = document.createElement("strong");
+    title.textContent = formatTime(log.at);
+    const message = document.createElement("span");
+    message.textContent = log.message;
+    item.append(title, message);
+    logsEl.append(item);
+  }
+}
+
+function formatTime(value) {
+  if (!value) {
+    return "-";
+  }
+  return new Date(value).toLocaleTimeString("zh-CN", {
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
+}

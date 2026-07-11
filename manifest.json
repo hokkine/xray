@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "上机助手",
+  "version": "0.1.0",
+  "description": "定时拉取设备列表，发现空闲设备后提醒或自动提交上机。",
+  "permissions": ["alarms", "cookies", "notifications", "storage"],
+  "host_permissions": ["http://xx.78sjz.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "上机助手",
+    "default_popup": "popup.html"
+  }
+}
