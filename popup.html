@@ -20,7 +20,9 @@
         <button id="startBtn" class="primary" type="button" title="开始监控">▶</button>
         <button id="stopBtn" type="button" title="停止监控">■</button>
         <button id="fetchBtn" type="button" title="拉取一次">↻</button>
+        <button id="diagnoseBtn" type="button" title="诊断列表接口">?</button>
         <button id="claimBtn" type="button" title="提交匹配设备" disabled>✓</button>
+        <button id="copyLogsBtn" type="button" title="复制日志">⧉</button>
       </section>
 
       <form id="settingsForm" class="form">
@@ -46,11 +48,18 @@
           <span>captchaAction</span>
           <input id="captchaAction" name="captchaAction" autocomplete="off">
         </label>
+        <label>
+          <span>JSESSIONID</span>
+          <input id="sessionId" name="sessionId" type="password" placeholder="可填 JSESSIONID=... 或纯值" autocomplete="off">
+        </label>
         <label class="toggle">
           <input id="autoSubmit" name="autoSubmit" type="checkbox">
           <span>自动提交上机</span>
         </label>
-        <button id="saveBtn" type="submit">保存配置</button>
+        <div class="split">
+          <button id="saveBtn" type="submit">保存配置</button>
+          <button id="syncCookieBtn" type="button">写入登录态</button>
+        </div>
       </form>
 
       <section class="panel">
@@ -64,8 +73,9 @@
       <section class="panel">
         <div class="panel-title">
           <h2>日志</h2>
-          <span id="errorText"></span>
+          <button id="clearLogsBtn" class="text-button" type="button">清空</button>
         </div>
+        <div id="errorText" class="error-text"></div>
         <div id="logs" class="logs empty">暂无日志</div>
       </section>
     </main>

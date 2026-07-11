@@ -72,6 +72,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       } else if (message.type === "pollOnce") {
         await pollOnce({ allowSubmit: false });
         sendResponse({ ok: true, state: await readState() });
+      } else if (message.type === "diagnose") {
+        await diagnoseFetch();
+        sendResponse({ ok: true, state: await readState() });
+      } else if (message.type === "syncSessionCookie") {
+        await syncSessionCookie(message.sessionId);
+        sendResponse({ ok: true, state: await readState() });
+      } else if (message.type === "clearLogs") {
+        await chrome.storage.local.set({ logs: [] });
+        sendResponse({ ok: true, state: await readState() });
       } else if (message.type === "claimDevice") {
         await claimDevice(message.device || null, { source: "manual" });
         sendResponse({ ok: true, state: await readState() });
@@ -211,11 +220,55 @@ async function fetchDeviceList() {
     throw new Error(`列表接口失败：HTTP ${response.status}`);
   }
 
-  try {
-    return JSON.parse(text);
-  } catch (_error) {
-    throw new Error("列表接口未返回 JSON，可能登录已失效");
+  return parseJsonResponse(text, "列表接口");
+}
+
+async function diagnoseFetch() {
+  await patchRuntime({
+    lastStatus: "诊断中",
+    lastError: "",
+    lastCheckedAt: new Date().toISOString()
+  });
+  await appendLog("info", "开始诊断列表接口");
+
+  const cookieInfo = await getSessionCookieInfo();
+  if (!cookieInfo.found) {
+    throw new Error("诊断失败：未检测到 JSESSIONID，请先在网页登录");
   }
+  await appendLog("info", `Cookie 已检测到：${cookieInfo.summary}`);
+
+  const startedAt = Date.now();
+  const response = await fetch(LIST_URL, {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+    headers: {
+      Accept: "*/*",
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache"
+    },
+    referrer: REFERER_URL
+  });
+  const text = await response.text();
+  const contentType = response.headers.get("content-type") || "-";
+  const elapsedMs = Date.now() - startedAt;
+  const snippet = text.replace(/\s+/g, " ").slice(0, 220);
+
+  await appendLog("info", `列表接口 HTTP ${response.status}，${elapsedMs}ms，${contentType}`);
+  if (!response.ok) {
+    throw new Error(`诊断失败：列表接口 HTTP ${response.status}。响应片段：${snippet || "空响应"}`);
+  }
+
+  const payload = parseJsonResponse(text, "诊断列表接口");
+  const devices = Array.isArray(payload.Data) ? payload.Data : [];
+  const idleCount = devices.filter(isIdleDevice).length;
+  await patchRuntime({
+    lastStatus: `诊断通过：设备 ${devices.length} 台，空闲 ${idleCount} 台`,
+    lastDevices: devices.filter(isIdleDevice).map(normalizeDevice).sort(sortDevice),
+    matchedDevice: null,
+    lastError: ""
+  });
+  await appendLog("info", `诊断通过：Success=${payload.Success || "-"}，设备 ${devices.length} 台，空闲 ${idleCount} 台`);
 }
 
 function isIdleDevice(device) {
@@ -318,9 +371,80 @@ async function claimDevice(device, { source }) {
 }
 
 async function ensureSessionCookie() {
-  const cookie = await chrome.cookies.get({ url: BASE_URL, name: "JSESSIONID" });
-  if (!cookie?.value) {
-    throw new Error("未检测到 JSESSIONID，请先在网页登录");
+  const cookieInfo = await getSessionCookieInfo();
+  if (cookieInfo.found) {
+    return;
+  }
+
+  throw new Error("未检测到 JSESSIONID，请先在网页登录");
+}
+
+async function getSessionCookieInfo() {
+  const cookie = await chrome.cookies.get({ url: REFERER_URL, name: "JSESSIONID" });
+  if (cookie?.value) {
+    return {
+      found: true,
+      summary: `path=${cookie.path || "-"} domain=${cookie.domain || "-"} secure=${Boolean(cookie.secure)}`
+    };
+  }
+
+  const urlCookies = await chrome.cookies.getAll({ url: REFERER_URL, name: "JSESSIONID" });
+  if (urlCookies.length) {
+    const summary = summarizeCookies(urlCookies);
+    return { found: true, summary };
+  }
+
+  const cookies = await chrome.cookies.getAll({ domain: "xx.78sjz.com", name: "JSESSIONID" });
+  if (cookies.length) {
+    const summary = summarizeCookies(cookies);
+    return { found: true, summary };
+  }
+
+  return { found: false, summary: "未找到" };
+}
+
+async function syncSessionCookie(sessionId) {
+  const value = normalizeSessionId(sessionId);
+  if (!value) {
+    throw new Error("JSESSIONID 不能为空");
+  }
+
+  await chrome.cookies.set({
+    url: BASE_URL,
+    name: "JSESSIONID",
+    value,
+    path: "/ezweb"
+  });
+  await appendLog("info", `已写入 JSESSIONID：${maskSessionId(value)}`);
+}
+
+function normalizeSessionId(sessionId) {
+  return String(sessionId || "")
+    .trim()
+    .replace(/^JSESSIONID\s*=\s*/i, "")
+    .replace(/;.*/, "")
+    .trim();
+}
+
+function summarizeCookies(cookies) {
+  return cookies
+    .map((item) => `path=${item.path || "-"} domain=${item.domain || "-"} secure=${Boolean(item.secure)} store=${item.storeId || "-"}`)
+    .join(" | ");
+}
+
+function maskSessionId(value) {
+  if (value.length <= 8) {
+    return "****";
+  }
+  return `${value.slice(0, 4)}...${value.slice(-4)}`;
+}
+
+function parseJsonResponse(text, label) {
+  try {
+    return JSON.parse(text);
+  } catch (_error) {
+    const snippet = text.replace(/\s+/g, " ").slice(0, 160);
+    throw new Error(`${label}未返回 JSON，可能登录已失效。响应片段：${snippet || "空响应"}`);
   }
 }
 
@@ -337,6 +461,8 @@ async function appendLog(level, message) {
     message,
     at: new Date().toISOString()
   };
+  const writer = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
+  writer(`[上机助手] ${item.at} ${level}: ${message}`);
   await chrome.storage.local.set({ logs: [item, ...((logs || []).slice(0, 79))] });
 }
 

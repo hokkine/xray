@@ -11,7 +11,7 @@
 }
 
 body {
-  width: 360px;
+  width: 380px;
   min-height: 520px;
   margin: 0;
   background: #f6f7f9;
@@ -84,7 +84,7 @@ h2 {
 
 .controls {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 8px;
   margin-bottom: 12px;
 }
@@ -116,6 +116,21 @@ button.primary {
 
 #saveBtn {
   width: 100%;
+}
+
+.text-button {
+  width: auto;
+  height: auto;
+  border: 0;
+  padding: 0;
+  color: #667085;
+  background: transparent;
+  font-size: 12px;
+}
+
+.text-button:hover {
+  color: #172033;
+  background: transparent;
 }
 
 .form,
@@ -182,10 +197,17 @@ input:focus {
 
 .panel-title {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 8px;
+}
+
+.error-text {
+  margin: -2px 0 8px;
+  color: #b42318;
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .devices,

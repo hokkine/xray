@@ -4,11 +4,16 @@ const runBadge = document.getElementById("runBadge");
 const startBtn = document.getElementById("startBtn");
 const stopBtn = document.getElementById("stopBtn");
 const fetchBtn = document.getElementById("fetchBtn");
+const diagnoseBtn = document.getElementById("diagnoseBtn");
 const claimBtn = document.getElementById("claimBtn");
+const copyLogsBtn = document.getElementById("copyLogsBtn");
+const clearLogsBtn = document.getElementById("clearLogsBtn");
+const syncCookieBtn = document.getElementById("syncCookieBtn");
 const devicesEl = document.getElementById("devices");
 const logsEl = document.getElementById("logs");
 const checkedAt = document.getElementById("checkedAt");
 const errorText = document.getElementById("errorText");
+const autoSubmitInput = document.getElementById("autoSubmit");
 
 let currentState = null;
 
@@ -25,6 +30,11 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
+  await send("saveSettings", { settings: readForm() });
+  await refresh();
+});
+
+autoSubmitInput.addEventListener("change", async () => {
   await send("saveSettings", { settings: readForm() });
   await refresh();
 });
@@ -46,6 +56,20 @@ fetchBtn.addEventListener("click", async () => {
   await refresh();
 });
 
+diagnoseBtn.addEventListener("click", async () => {
+  await send("saveSettings", { settings: readForm() });
+  await send("diagnose");
+  await refresh();
+});
+
+syncCookieBtn.addEventListener("click", async () => {
+  const sessionId = document.getElementById("sessionId").value;
+  await send("syncSessionCookie", { sessionId });
+  document.getElementById("sessionId").value = "";
+  await send("diagnose");
+  await refresh();
+});
+
 claimBtn.addEventListener("click", async () => {
   const device = currentState?.runtime?.matchedDevice;
   if (!device) {
@@ -54,6 +78,23 @@ claimBtn.addEventListener("click", async () => {
   claimBtn.disabled = true;
   await send("saveSettings", { settings: readForm() });
   await send("claimDevice", { device });
+  await refresh();
+});
+
+copyLogsBtn.addEventListener("click", async () => {
+  const logs = currentState?.logs || [];
+  const text = logs
+    .map((log) => `[${log.at || "-"}] ${log.level || "info"} ${log.message || ""}`)
+    .join("\n");
+  await navigator.clipboard.writeText(text || "暂无日志");
+  copyLogsBtn.textContent = "✓";
+  window.setTimeout(() => {
+    copyLogsBtn.textContent = "⧉";
+  }, 900);
+});
+
+clearLogsBtn.addEventListener("click", async () => {
+  await send("clearLogs");
   await refresh();
 });
 
@@ -88,7 +129,7 @@ function render(state) {
   setValue("captchaAction", settings.captchaAction);
   setValue("pollIntervalSeconds", settings.pollIntervalSeconds);
   setValue("preferredDevices", settings.preferredDevices);
-  document.getElementById("autoSubmit").checked = Boolean(settings.autoSubmit);
+  setChecked("autoSubmit", settings.autoSubmit);
 
   statusText.textContent = runtime.lastStatus || "未启动";
   checkedAt.textContent = runtime.lastCheckedAt ? formatTime(runtime.lastCheckedAt) : "-";
@@ -114,6 +155,13 @@ function setValue(id, value) {
   const element = document.getElementById(id);
   if (document.activeElement !== element) {
     element.value = value ?? "";
+  }
+}
+
+function setChecked(id, value) {
+  const element = document.getElementById(id);
+  if (document.activeElement !== element) {
+    element.checked = Boolean(value);
   }
 }
 
