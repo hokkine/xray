@@ -3,6 +3,7 @@ const LIST_URL = `${BASE_URL}/ezweb/action?userWorkshopAction=1001`;
 const CLAIM_URL = `${BASE_URL}/ezweb/action?userWorkshopAction=1002`;
 const REFERER_URL = `${BASE_URL}/ezweb/wd/User/index.jsp?id=1019`;
 const ALARM_NAME = "workshop-poll";
+const FAST_TIMER_MAX_SECONDS = 29;
 
 const DEFAULT_SETTINGS = {
   roomCode: "TFP6314",
@@ -14,6 +15,7 @@ const DEFAULT_SETTINGS = {
 };
 
 let pollInFlight = false;
+let pollTimerId = null;
 
 chrome.runtime.onInstalled.addListener(async () => {
   const stored = await chrome.storage.local.get(["settings", "runtime"]);
@@ -41,7 +43,7 @@ chrome.runtime.onInstalled.addListener(async () => {
 chrome.runtime.onStartup.addListener(async () => {
   const { runtime } = await chrome.storage.local.get("runtime");
   if (runtime?.running) {
-    await scheduleAlarm();
+    await schedulePolling();
   }
   await updateBadge();
 });
@@ -60,8 +62,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       } else if (message.type === "saveSettings") {
         const settings = sanitizeSettings(message.settings);
         await chrome.storage.local.set({ settings });
-        await scheduleAlarm();
-        await appendLog("info", "配置已保存");
+        await schedulePolling();
+        if (!message.silent) {
+          await appendLog("info", "配置已保存");
+        }
         sendResponse({ ok: true, state: await readState() });
       } else if (message.type === "start") {
         await startPolling();
@@ -110,13 +114,14 @@ function sanitizeSettings(input = {}) {
     roomCode: String(input.roomCode || DEFAULT_SETTINGS.roomCode).trim(),
     mode: String(input.mode || DEFAULT_SETTINGS.mode).trim(),
     captchaAction: String(input.captchaAction || DEFAULT_SETTINGS.captchaAction).trim(),
-    pollIntervalSeconds: Number.isFinite(interval) ? Math.max(30, Math.min(interval, 3600)) : 30,
+    pollIntervalSeconds: Number.isFinite(interval) ? Math.max(1, Math.min(interval, 3600)) : 30,
     preferredDevices: String(input.preferredDevices || "").trim(),
     autoSubmit: Boolean(input.autoSubmit)
   };
 }
 
 async function startPolling() {
+  await clearPollingSchedule();
   await patchRuntime({
     running: true,
     lastStatus: "监控中",
@@ -124,25 +129,45 @@ async function startPolling() {
     matchedDevice: null
   });
   await appendLog("info", "开始监控");
-  await scheduleAlarm();
   await pollOnce({ allowSubmit: true });
 }
 
 async function stopPolling(status = "已停止") {
-  await chrome.alarms.clear(ALARM_NAME);
+  await clearPollingSchedule();
   await patchRuntime({ running: false, lastStatus: status });
   await appendLog("info", status);
   await updateBadge();
 }
 
-async function scheduleAlarm() {
-  const { settings, runtime } = await readState();
+async function clearPollingSchedule() {
+  if (pollTimerId) {
+    clearTimeout(pollTimerId);
+    pollTimerId = null;
+  }
   await chrome.alarms.clear(ALARM_NAME);
+}
+
+async function schedulePolling() {
+  const { settings, runtime } = await readState();
+  await clearPollingSchedule();
   if (!runtime?.running) {
     return;
   }
-  const periodInMinutes = Math.max(30, Number(settings.pollIntervalSeconds) || 30) / 60;
-  await chrome.alarms.create(ALARM_NAME, { periodInMinutes });
+  const intervalSeconds = normalizePollInterval(settings.pollIntervalSeconds);
+  if (intervalSeconds <= FAST_TIMER_MAX_SECONDS) {
+    pollTimerId = setTimeout(() => {
+      pollTimerId = null;
+      pollOnce({ allowSubmit: true });
+    }, intervalSeconds * 1000);
+    return;
+  }
+
+  await chrome.alarms.create(ALARM_NAME, { periodInMinutes: intervalSeconds / 60 });
+}
+
+function normalizePollInterval(value) {
+  const interval = Number.parseInt(value, 10);
+  return Number.isFinite(interval) ? Math.max(1, Math.min(interval, 3600)) : DEFAULT_SETTINGS.pollIntervalSeconds;
 }
 
 async function pollOnce({ allowSubmit }) {
@@ -198,6 +223,9 @@ async function pollOnce({ allowSubmit }) {
     await updateBadge();
   } finally {
     pollInFlight = false;
+    if (allowSubmit) {
+      await schedulePolling();
+    }
   }
 }
 

@@ -16,6 +16,7 @@ const errorText = document.getElementById("errorText");
 const autoSubmitInput = document.getElementById("autoSubmit");
 
 let currentState = null;
+let saveInFlight = false;
 
 document.addEventListener("DOMContentLoaded", async () => {
   await refresh();
@@ -30,17 +31,23 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
-  await send("saveSettings", { settings: readForm() });
+  await saveSettings({ silent: false });
   await refresh();
 });
 
 autoSubmitInput.addEventListener("change", async () => {
-  await send("saveSettings", { settings: readForm() });
+  await saveSettings({ silent: true });
   await refresh();
 });
 
+form.addEventListener("focusout", async (event) => {
+  if (event.target instanceof HTMLInputElement && event.target.id !== "sessionId") {
+    await saveSettings({ silent: true });
+  }
+});
+
 startBtn.addEventListener("click", async () => {
-  await send("saveSettings", { settings: readForm() });
+  await saveSettings({ silent: true });
   await send("start");
   await refresh();
 });
@@ -51,13 +58,13 @@ stopBtn.addEventListener("click", async () => {
 });
 
 fetchBtn.addEventListener("click", async () => {
-  await send("saveSettings", { settings: readForm() });
+  await saveSettings({ silent: true });
   await send("pollOnce");
   await refresh();
 });
 
 diagnoseBtn.addEventListener("click", async () => {
-  await send("saveSettings", { settings: readForm() });
+  await saveSettings({ silent: true });
   await send("diagnose");
   await refresh();
 });
@@ -76,7 +83,7 @@ claimBtn.addEventListener("click", async () => {
     return;
   }
   claimBtn.disabled = true;
-  await send("saveSettings", { settings: readForm() });
+  await saveSettings({ silent: true });
   await send("claimDevice", { device });
   await refresh();
 });
@@ -106,6 +113,18 @@ async function refresh() {
 
 async function send(type, payload = {}) {
   return chrome.runtime.sendMessage({ type, ...payload });
+}
+
+async function saveSettings({ silent }) {
+  if (saveInFlight) {
+    return;
+  }
+  saveInFlight = true;
+  try {
+    await send("saveSettings", { settings: readForm(), silent });
+  } finally {
+    saveInFlight = false;
+  }
 }
 
 function readForm() {
