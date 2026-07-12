@@ -32,14 +32,18 @@
         </label>
         <div class="split">
           <label>
-            <span>mode</span>
-            <input id="mode" name="mode" inputmode="numeric">
+            <span>模式</span>
+            <select id="modePreset" name="modePreset">
+              <option value="secret">机密</option>
+              <option value="topsecret">绝密</option>
+            </select>
           </label>
           <label>
             <span>间隔秒</span>
             <input id="pollIntervalSeconds" name="pollIntervalSeconds" type="number" min="1" max="3600" step="1">
           </label>
         </div>
+        <input id="mode" name="mode" type="hidden">
         <label>
           <span>指定机器</span>
           <input id="preferredDevices" name="preferredDevices" placeholder="例：87 79 1762512935734323" autocomplete="off">

@@ -14,6 +14,12 @@ const logsEl = document.getElementById("logs");
 const checkedAt = document.getElementById("checkedAt");
 const errorText = document.getElementById("errorText");
 const autoSubmitInput = document.getElementById("autoSubmit");
+const modePresetInput = document.getElementById("modePreset");
+
+const MODE_PRESETS = {
+  secret: { label: "机密", mode: "2", roomCode: "TFP6314" },
+  topsecret: { label: "绝密", mode: "4", roomCode: "mdf6300" }
+};
 
 let currentState = null;
 let saveInFlight = false;
@@ -40,8 +46,14 @@ autoSubmitInput.addEventListener("change", async () => {
   await refresh();
 });
 
+modePresetInput.addEventListener("change", async () => {
+  applyModePreset(modePresetInput.value);
+  await saveSettings({ silent: true });
+  await refresh();
+});
+
 form.addEventListener("focusout", async (event) => {
-  if (event.target instanceof HTMLInputElement && event.target.id !== "sessionId") {
+  if ((event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) && event.target.id !== "sessionId") {
     await saveSettings({ silent: true });
   }
 });
@@ -131,6 +143,7 @@ function readForm() {
   return {
     roomCode: document.getElementById("roomCode").value,
     mode: document.getElementById("mode").value,
+    modePreset: document.getElementById("modePreset").value,
     captchaAction: document.getElementById("captchaAction").value,
     pollIntervalSeconds: document.getElementById("pollIntervalSeconds").value,
     preferredDevices: document.getElementById("preferredDevices").value,
@@ -142,9 +155,11 @@ function render(state) {
   const settings = state.settings || {};
   const runtime = state.runtime || {};
   const logs = state.logs || [];
+  const modePreset = resolveModePreset(settings);
 
   setValue("roomCode", settings.roomCode);
   setValue("mode", settings.mode);
+  setValue("modePreset", modePreset);
   setValue("captchaAction", settings.captchaAction);
   setValue("pollIntervalSeconds", settings.pollIntervalSeconds);
   setValue("preferredDevices", settings.preferredDevices);
@@ -175,6 +190,22 @@ function setValue(id, value) {
   if (document.activeElement !== element) {
     element.value = value ?? "";
   }
+}
+
+function applyModePreset(value) {
+  const preset = MODE_PRESETS[value] || MODE_PRESETS.secret;
+  document.getElementById("mode").value = preset.mode;
+  document.getElementById("roomCode").value = preset.roomCode;
+}
+
+function resolveModePreset(settings) {
+  if (settings.modePreset && MODE_PRESETS[settings.modePreset]) {
+    return settings.modePreset;
+  }
+  const matched = Object.entries(MODE_PRESETS).find(([, preset]) => {
+    return preset.mode === String(settings.mode || "") && preset.roomCode.toLowerCase() === String(settings.roomCode || "").toLowerCase();
+  });
+  return matched ? matched[0] : "secret";
 }
 
 function setChecked(id, value) {

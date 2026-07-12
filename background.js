@@ -8,6 +8,7 @@ const FAST_TIMER_MAX_SECONDS = 29;
 const DEFAULT_SETTINGS = {
   roomCode: "TFP6314",
   mode: "2",
+  modePreset: "secret",
   captchaAction: "user1001",
   pollIntervalSeconds: 30,
   preferredDevices: "",
@@ -113,6 +114,7 @@ function sanitizeSettings(input = {}) {
   return {
     roomCode: String(input.roomCode || DEFAULT_SETTINGS.roomCode).trim(),
     mode: String(input.mode || DEFAULT_SETTINGS.mode).trim(),
+    modePreset: String(input.modePreset || DEFAULT_SETTINGS.modePreset).trim(),
     captchaAction: String(input.captchaAction || DEFAULT_SETTINGS.captchaAction).trim(),
     pollIntervalSeconds: Number.isFinite(interval) ? Math.max(1, Math.min(interval, 3600)) : 30,
     preferredDevices: String(input.preferredDevices || "").trim(),
