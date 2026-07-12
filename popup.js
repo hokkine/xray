@@ -8,13 +8,10 @@ const diagnoseBtn = document.getElementById("diagnoseBtn");
 const claimBtn = document.getElementById("claimBtn");
 const copyLogsBtn = document.getElementById("copyLogsBtn");
 const clearLogsBtn = document.getElementById("clearLogsBtn");
-const syncCookieBtn = document.getElementById("syncCookieBtn");
 const devicesEl = document.getElementById("devices");
 const logsEl = document.getElementById("logs");
 const checkedAt = document.getElementById("checkedAt");
 const errorText = document.getElementById("errorText");
-const autoSubmitInput = document.getElementById("autoSubmit");
-const modePresetInput = document.getElementById("modePreset");
 
 const MODE_PRESETS = {
   secret: { label: "机密", mode: "2", roomCode: "TFP6314" },
@@ -23,6 +20,7 @@ const MODE_PRESETS = {
 
 let currentState = null;
 let saveInFlight = false;
+let saveTimerId = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
   await refresh();
@@ -35,28 +33,12 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   }
 });
 
-form.addEventListener("submit", async (event) => {
+form.addEventListener("submit", (event) => {
   event.preventDefault();
-  await saveSettings({ silent: false });
-  await refresh();
 });
 
-autoSubmitInput.addEventListener("change", async () => {
-  await saveSettings({ silent: true });
-  await refresh();
-});
-
-modePresetInput.addEventListener("change", async () => {
-  applyModePreset(modePresetInput.value);
-  await saveSettings({ silent: true });
-  await refresh();
-});
-
-form.addEventListener("focusout", async (event) => {
-  if ((event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) && event.target.id !== "sessionId") {
-    await saveSettings({ silent: true });
-  }
-});
+form.addEventListener("input", handleConfigChange);
+form.addEventListener("change", handleConfigChange);
 
 startBtn.addEventListener("click", async () => {
   await saveSettings({ silent: true });
@@ -77,14 +59,6 @@ fetchBtn.addEventListener("click", async () => {
 
 diagnoseBtn.addEventListener("click", async () => {
   await saveSettings({ silent: true });
-  await send("diagnose");
-  await refresh();
-});
-
-syncCookieBtn.addEventListener("click", async () => {
-  const sessionId = document.getElementById("sessionId").value;
-  await send("syncSessionCookie", { sessionId });
-  document.getElementById("sessionId").value = "";
   await send("diagnose");
   await refresh();
 });
@@ -127,7 +101,35 @@ async function send(type, payload = {}) {
   return chrome.runtime.sendMessage({ type, ...payload });
 }
 
+function handleConfigChange(event) {
+  if (!(event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement)) {
+    return;
+  }
+  if (event.target.id === "mode") {
+    return;
+  }
+  if (event.target.id === "modePreset") {
+    applyModePreset(event.target.value);
+  }
+  scheduleAutoSave();
+}
+
+function scheduleAutoSave() {
+  if (saveTimerId) {
+    window.clearTimeout(saveTimerId);
+  }
+  saveTimerId = window.setTimeout(async () => {
+    saveTimerId = null;
+    await saveSettings({ silent: true });
+    await refresh();
+  }, 180);
+}
+
 async function saveSettings({ silent }) {
+  if (saveTimerId) {
+    window.clearTimeout(saveTimerId);
+    saveTimerId = null;
+  }
   if (saveInFlight) {
     return;
   }
@@ -144,9 +146,7 @@ function readForm() {
     roomCode: document.getElementById("roomCode").value,
     mode: document.getElementById("mode").value,
     modePreset: document.getElementById("modePreset").value,
-    captchaAction: document.getElementById("captchaAction").value,
     pollIntervalSeconds: document.getElementById("pollIntervalSeconds").value,
-    preferredDevices: document.getElementById("preferredDevices").value,
     autoSubmit: document.getElementById("autoSubmit").checked
   };
 }
@@ -160,9 +160,7 @@ function render(state) {
   setValue("roomCode", settings.roomCode);
   setValue("mode", settings.mode);
   setValue("modePreset", modePreset);
-  setValue("captchaAction", settings.captchaAction);
   setValue("pollIntervalSeconds", settings.pollIntervalSeconds);
-  setValue("preferredDevices", settings.preferredDevices);
   setChecked("autoSubmit", settings.autoSubmit);
 
   statusText.textContent = runtime.lastStatus || "未启动";

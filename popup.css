@@ -230,10 +230,6 @@ button.primary:hover:not(:disabled) {
   transform: translate(-50%, 0) rotate(45deg);
 }
 
-#saveBtn {
-  width: 100%;
-}
-
 .text-button {
   width: auto;
   height: auto;

@@ -103,7 +103,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 async function readState() {
   const data = await chrome.storage.local.get(["settings", "runtime", "logs"]);
   return {
-    settings: { ...DEFAULT_SETTINGS, ...(data.settings || {}) },
+    settings: sanitizeSettings({ ...DEFAULT_SETTINGS, ...(data.settings || {}) }),
     runtime: data.runtime || {},
     logs: data.logs || []
   };
@@ -115,9 +115,9 @@ function sanitizeSettings(input = {}) {
     roomCode: String(input.roomCode || DEFAULT_SETTINGS.roomCode).trim(),
     mode: String(input.mode || DEFAULT_SETTINGS.mode).trim(),
     modePreset: String(input.modePreset || DEFAULT_SETTINGS.modePreset).trim(),
-    captchaAction: String(input.captchaAction || DEFAULT_SETTINGS.captchaAction).trim(),
+    captchaAction: DEFAULT_SETTINGS.captchaAction,
     pollIntervalSeconds: Number.isFinite(interval) ? Math.max(1, Math.min(interval, 3600)) : 30,
-    preferredDevices: String(input.preferredDevices || "").trim(),
+    preferredDevices: "",
     autoSubmit: Boolean(input.autoSubmit)
   };
 }

@@ -8,7 +8,7 @@
 2. 开启“开发者模式”。
 3. 点击“加载已解压的扩展程序”，选择本目录：`/Users/xushuo10/Desktop/Develop/project/xray`。
 4. 在浏览器里正常登录并打开 `http://xx.78sjz.com/ezweb/wd/User/index.jsp?id=1019`。
-5. 点扩展图标，确认 `roomCode`、`mode` 和 `captchaAction`，再开始监控。
+5. 点扩展图标，选择模式和轮询间隔，再开始监控。
 
 ## 配置
 
@@ -16,14 +16,13 @@
 - `机密`：`mode=2`，`roomCode=TFP6314`。
 - `绝密`：`mode=4`，`roomCode=mdf6300`。
 - `间隔秒`：最小 1 秒；低于 30 秒时使用扩展后台快速定时器。
-- `指定机器`：可填机器号、标题或设备 ID，多个值用空格或逗号分隔；留空则使用排序后的第一台空闲机。
 - `自动提交上机`：关闭时只提醒并等待手动点击提交；开启时命中后提交一次并停止监控。
 
 被锁定的空闲机不会进入可提交列表，也不会自动或手动提交。锁定判断会检查 `reservationStatus=LOCKED`、`reservationAccount`、`reservationLockSeconds` 和 `reservationLockExpireTime`。
 
 扩展不会保存你贴出来的 `JSESSIONID`。如果列表拉取失败，通常是网页登录态过期，重新登录后再点“拉取一次”即可。
 
-输入框失焦后会自动保存配置；`JSESSIONID` 输入框除外，它只在点击“写入登录态”时写入浏览器 cookie。
+配置修改后会自动保存。
 
 ## 排查日志
 
@@ -31,7 +30,6 @@
 - `?`：诊断一次，只检查 cookie 和列表接口，不会提交上机。
 - `⧉`：复制 popup 里保存的日志。
 - `清空`：清空保存的日志。
-- `写入登录态`：如果扩展一直提示未检测到 `JSESSIONID`，可把当前网页登录态的 `JSESSIONID` 填入输入框，然后点击这个按钮写入当前浏览器 cookie。
 
 如果需要看更细的后台实时日志，打开 `chrome://extensions/` 或 `edge://extensions/`，找到“上机助手”，点击 Service Worker / 检查视图，Console 里会出现 `[上机助手]` 开头的日志。
 
