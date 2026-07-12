@@ -18,6 +18,8 @@
 - `指定机器`：可填机器号、标题或设备 ID，多个值用空格或逗号分隔；留空则使用排序后的第一台空闲机。
 - `自动提交上机`：关闭时只提醒并等待手动点击提交；开启时命中后提交一次并停止监控。
 
+被锁定的空闲机不会进入可提交列表，也不会自动或手动提交。锁定判断会检查 `reservationStatus=LOCKED`、`reservationAccount`、`reservationLockSeconds` 和 `reservationLockExpireTime`。
+
 扩展不会保存你贴出来的 `JSESSIONID`。如果列表拉取失败，通常是网页登录态过期，重新登录后再点“拉取一次”即可。
 
 输入框失焦后会自动保存配置；`JSESSIONID` 输入框除外，它只在点击“写入登录态”时写入浏览器 cookie。

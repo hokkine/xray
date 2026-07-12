@@ -189,17 +189,21 @@ async function pollOnce({ allowSubmit }) {
 
     const payload = await fetchDeviceList();
     const devices = Array.isArray(payload.Data) ? payload.Data : [];
-    const idleDevices = devices.filter(isIdleDevice).map(normalizeDevice).sort(sortDevice);
-    const matchedDevice = pickDevice(idleDevices, settings.preferredDevices);
-    const status = matchedDevice ? `发现空闲：${matchedDevice.title}` : `未发现匹配空闲机（空闲 ${idleDevices.length} 台）`;
+    const idleDevices = devices.filter(isIdleDevice);
+    const lockedIdleCount = idleDevices.filter(isLockedDevice).length;
+    const availableDevices = idleDevices.filter(isAvailableDevice).map(normalizeDevice).sort(sortDevice);
+    const matchedDevice = pickDevice(availableDevices, settings.preferredDevices);
+    const status = matchedDevice
+      ? `发现可提交空闲：${matchedDevice.title}`
+      : `未发现可提交空闲机（空闲 ${idleDevices.length} 台，锁定 ${lockedIdleCount} 台）`;
 
     await patchRuntime({
       lastStatus: status,
-      lastDevices: idleDevices,
+      lastDevices: availableDevices,
       matchedDevice: matchedDevice || null,
       lastError: ""
     });
-    await appendLog("info", `拉取完成，空闲 ${idleDevices.length} 台`);
+    await appendLog("info", `拉取完成，空闲 ${idleDevices.length} 台，可提交 ${availableDevices.length} 台，锁定 ${lockedIdleCount} 台`);
 
     if (!matchedDevice) {
       await updateBadge();
@@ -289,19 +293,40 @@ async function diagnoseFetch() {
 
   const payload = parseJsonResponse(text, "诊断列表接口");
   const devices = Array.isArray(payload.Data) ? payload.Data : [];
-  const idleCount = devices.filter(isIdleDevice).length;
+  const idleDevices = devices.filter(isIdleDevice);
+  const availableDevices = idleDevices.filter(isAvailableDevice).map(normalizeDevice).sort(sortDevice);
+  const idleCount = idleDevices.length;
+  const lockedIdleCount = idleDevices.filter(isLockedDevice).length;
   await patchRuntime({
-    lastStatus: `诊断通过：设备 ${devices.length} 台，空闲 ${idleCount} 台`,
-    lastDevices: devices.filter(isIdleDevice).map(normalizeDevice).sort(sortDevice),
+    lastStatus: `诊断通过：设备 ${devices.length} 台，空闲 ${idleCount} 台，锁定 ${lockedIdleCount} 台`,
+    lastDevices: availableDevices,
     matchedDevice: null,
     lastError: ""
   });
-  await appendLog("info", `诊断通过：Success=${payload.Success || "-"}，设备 ${devices.length} 台，空闲 ${idleCount} 台`);
+  await appendLog("info", `诊断通过：Success=${payload.Success || "-"}，设备 ${devices.length} 台，空闲 ${idleCount} 台，可提交 ${availableDevices.length} 台，锁定 ${lockedIdleCount} 台`);
 }
 
 function isIdleDevice(device) {
   const status = String(device?.kdqzt || device?.status || "").trim();
   return status.includes("空闲");
+}
+
+function isAvailableDevice(device) {
+  return isIdleDevice(device) && !isLockedDevice(device);
+}
+
+function isLockedDevice(device) {
+  const reservationStatus = String(device?.reservationStatus || "").trim().toUpperCase();
+  const reservationAccount = String(device?.reservationAccount || "").trim();
+  const reservationLockSeconds = Number.parseInt(device?.reservationLockSeconds, 10);
+  const reservationLockExpireTime = String(device?.reservationLockExpireTime || "").trim();
+
+  return (
+    reservationStatus === "LOCKED" ||
+    reservationAccount !== "" ||
+    (Number.isFinite(reservationLockSeconds) && reservationLockSeconds > 0) ||
+    reservationLockExpireTime !== ""
+  );
 }
 
 function normalizeDevice(device) {
@@ -312,6 +337,11 @@ function normalizeDevice(device) {
     customer: String(device.Customer || "").trim(),
     orderType: String(device.ordertype || "").trim(),
     power: String(device.hfb || "").trim(),
+    locked: isLockedDevice(device),
+    reservationStatus: String(device.reservationStatus || "").trim(),
+    reservationAccount: String(device.reservationAccount || "").trim(),
+    reservationLockSeconds: String(device.reservationLockSeconds || "").trim(),
+    reservationLockExpireTime: String(device.reservationLockExpireTime || "").trim(),
     raw: device
   };
 }
@@ -349,6 +379,9 @@ async function claimDevice(device, { source }) {
   const target = device || runtime?.matchedDevice;
   if (!target?.id) {
     throw new Error("没有可提交的设备");
+  }
+  if (target.locked || isLockedDevice(target.raw || target)) {
+    throw new Error(`设备已锁定，禁止提交：${target.title || target.id}`);
   }
   if (!settings.roomCode) {
     throw new Error("roomCode 不能为空");
