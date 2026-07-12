@@ -15,6 +15,11 @@ const DEFAULT_SETTINGS = {
   autoSubmit: false
 };
 
+const MODE_LABELS = {
+  secret: "机密",
+  topsecret: "绝密"
+};
+
 let pollInFlight = false;
 let pollTimerId = null;
 
@@ -212,7 +217,8 @@ async function pollOnce({ allowSubmit }) {
       return;
     }
 
-    await notify("发现空闲设备", `${matchedDevice.title} ${settings.autoSubmit ? "准备自动上机" : "等待手动确认"}`);
+    const claimContext = formatClaimContext(settings);
+    await notify("发现空闲设备", `${matchedDevice.title} · ${claimContext} · ${settings.autoSubmit ? "准备自动上机" : "等待手动确认"}`);
 
     if (allowSubmit && settings.autoSubmit) {
       await claimDevice(matchedDevice, { source: "auto" });
@@ -379,6 +385,7 @@ function extractNumber(text) {
 async function claimDevice(device, { source }) {
   const { settings, runtime } = await readState();
   const target = device || runtime?.matchedDevice;
+  const claimContext = formatClaimContext(settings);
   if (!target?.id) {
     throw new Error("没有可提交的设备");
   }
@@ -389,8 +396,8 @@ async function claimDevice(device, { source }) {
     throw new Error("roomCode 不能为空");
   }
 
-  await patchRuntime({ lastStatus: `提交中：${target.title}`, lastError: "" });
-  await appendLog(source === "auto" ? "warn" : "info", `提交上机：${target.title}`);
+  await patchRuntime({ lastStatus: `提交中：${target.title} · ${claimContext}`, lastError: "" });
+  await appendLog(source === "auto" ? "warn" : "info", `提交上机：${target.title} · ${claimContext}`);
   await ensureSessionCookie();
 
   const body = new URLSearchParams({
@@ -422,15 +429,20 @@ async function claimDevice(device, { source }) {
 
   await patchRuntime({
     running: false,
-    lastStatus: `已提交：${target.title}`,
+    lastStatus: `已提交：${target.title} · ${claimContext}`,
     lastSubmittedAt: new Date().toISOString(),
     lastSubmitResponse: compactText,
     matchedDevice: target
   });
   await chrome.alarms.clear(ALARM_NAME);
-  await appendLog("info", `提交完成：${compactText || "空响应"}`);
-  await notify("已提交上机", `${target.title} 已提交，监控已停止`);
+  await appendLog("info", `提交完成：${target.title} · ${claimContext} · ${compactText || "空响应"}`);
+  await notify("已提交上机", `${target.title} · ${claimContext} · 监控已停止`);
   await updateBadge();
+}
+
+function formatClaimContext(settings) {
+  const label = MODE_LABELS[settings.modePreset] || `模式${settings.mode || "-"}`;
+  return `${label} · mode=${settings.mode || "-"} · roomCode=${settings.roomCode || "-"}`;
 }
 
 async function ensureSessionCookie() {
