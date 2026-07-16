@@ -8,9 +8,7 @@ const diagnoseBtn = document.getElementById("diagnoseBtn");
 const claimBtn = document.getElementById("claimBtn");
 const copyLogsBtn = document.getElementById("copyLogsBtn");
 const clearLogsBtn = document.getElementById("clearLogsBtn");
-const devicesEl = document.getElementById("devices");
 const logsEl = document.getElementById("logs");
-const checkedAt = document.getElementById("checkedAt");
 const errorText = document.getElementById("errorText");
 
 const MODE_PRESETS = {
@@ -164,7 +162,6 @@ function render(state) {
   setChecked("autoSubmit", settings.autoSubmit);
 
   statusText.textContent = runtime.lastStatus || "未启动";
-  checkedAt.textContent = runtime.lastCheckedAt ? formatTime(runtime.lastCheckedAt) : "-";
   errorText.textContent = runtime.lastError || "";
 
   runBadge.className = "badge";
@@ -179,7 +176,6 @@ function render(state) {
   }
 
   claimBtn.disabled = !runtime.matchedDevice;
-  renderDevices(runtime.lastDevices || [], runtime.matchedDevice);
   renderLogs(logs);
 }
 
@@ -210,27 +206,6 @@ function setChecked(id, value) {
   const element = document.getElementById(id);
   if (document.activeElement !== element) {
     element.checked = Boolean(value);
-  }
-}
-
-function renderDevices(devices, matchedDevice) {
-  if (!devices.length) {
-    devicesEl.className = "devices empty";
-    devicesEl.textContent = "暂无数据";
-    return;
-  }
-
-  devicesEl.className = "devices";
-  devicesEl.textContent = "";
-  for (const device of devices.slice(0, 10)) {
-    const item = document.createElement("div");
-    item.className = "device";
-    const title = document.createElement("strong");
-    title.textContent = matchedDevice?.id === device.id ? `${device.title} · 匹配` : device.title;
-    const meta = document.createElement("span");
-    meta.textContent = `ID ${device.id} · ${device.status || "空闲"} · k_status ${device.kStatus || "-"} · ${device.power || "-"}`;
-    item.append(title, meta);
-    devicesEl.append(item);
   }
 }
 

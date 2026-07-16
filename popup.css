@@ -30,11 +30,9 @@
 
 body {
   width: 380px;
-  height: 640px;
-  min-height: 640px;
+  min-height: 520px;
   margin: 0;
   background: var(--canvas);
-  overflow: hidden;
 }
 
 button,
@@ -48,12 +46,7 @@ button {
 }
 
 .shell {
-  display: grid;
-  grid-template-rows: auto auto auto minmax(130px, 1fr) minmax(190px, 1.35fr);
-  gap: 12px;
-  height: 100%;
   padding: 14px;
-  overflow: hidden;
 }
 
 .topbar {
@@ -61,7 +54,7 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 48px;
+  margin-bottom: 12px;
 }
 
 h1,
@@ -82,17 +75,10 @@ h2 {
 
 #statusText {
   max-width: 260px;
-  min-height: 30px;
-  max-height: 30px;
   margin-top: 4px;
   color: var(--muted);
   font-size: 12px;
-  line-height: 15px;
-  overflow: hidden;
   overflow-wrap: anywhere;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
 .badge {
@@ -123,6 +109,7 @@ h2 {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: 8px;
+  margin-bottom: 12px;
 }
 
 button {
@@ -270,16 +257,10 @@ button.primary:hover:not(:disabled) {
   background: var(--surface);
 }
 
-.panel {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
-  min-height: 0;
-  overflow: hidden;
-}
-
 .form {
   display: grid;
   gap: 10px;
+  margin-bottom: 12px;
 }
 
 label {
@@ -348,6 +329,10 @@ select:focus {
   height: 16px;
 }
 
+.panel + .panel {
+  margin-top: 12px;
+}
+
 .panel-title {
   display: flex;
   align-items: center;
@@ -357,31 +342,18 @@ select:focus {
 }
 
 .error-text {
-  min-height: 0;
-  max-height: 32px;
   margin: -2px 0 8px;
   color: var(--error);
   font-size: 12px;
-  line-height: 16px;
-  overflow: auto;
   overflow-wrap: anywhere;
 }
 
 .devices,
 .logs {
   display: grid;
-  align-content: start;
   gap: 8px;
-  min-height: 0;
+  max-height: 140px;
   overflow: auto;
-}
-
-.devices {
-  max-height: none;
-}
-
-.logs {
-  max-height: none;
 }
 
 .device,
