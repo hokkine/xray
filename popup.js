@@ -228,7 +228,7 @@ function renderDevices(devices, matchedDevice) {
     const title = document.createElement("strong");
     title.textContent = matchedDevice?.id === device.id ? `${device.title} · 匹配` : device.title;
     const meta = document.createElement("span");
-    meta.textContent = `ID ${device.id} · ${device.status || "空闲"} · ${device.power || "-"}`;
+    meta.textContent = `ID ${device.id} · ${device.status || "空闲"} · k_status ${device.kStatus || "-"} · ${device.power || "-"}`;
     item.append(title, meta);
     devicesEl.append(item);
   }

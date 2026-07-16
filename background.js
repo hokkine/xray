@@ -198,11 +198,12 @@ async function pollOnce({ allowSubmit }) {
     const devices = Array.isArray(payload.Data) ? payload.Data : [];
     const idleDevices = devices.filter(isIdleDevice);
     const lockedIdleCount = idleDevices.filter(isLockedDevice).length;
+    const offlineIdleCount = idleDevices.filter((device) => !isOnlineDevice(device)).length;
     const availableDevices = idleDevices.filter(isAvailableDevice).map(normalizeDevice).sort(sortDevice);
     const matchedDevice = pickDevice(availableDevices, settings.preferredDevices);
     const status = matchedDevice
       ? `发现可提交空闲：${matchedDevice.title}`
-      : `未发现可提交空闲机（空闲 ${idleDevices.length} 台，锁定 ${lockedIdleCount} 台）`;
+      : `未发现可提交空闲机（空闲 ${idleDevices.length} 台，锁定 ${lockedIdleCount} 台，离线 ${offlineIdleCount} 台）`;
 
     await patchRuntime({
       lastStatus: status,
@@ -210,7 +211,7 @@ async function pollOnce({ allowSubmit }) {
       matchedDevice: matchedDevice || null,
       lastError: ""
     });
-    await appendLog("info", `拉取完成，空闲 ${idleDevices.length} 台，可提交 ${availableDevices.length} 台，锁定 ${lockedIdleCount} 台`);
+    await appendLog("info", `拉取完成，空闲 ${idleDevices.length} 台，可提交 ${availableDevices.length} 台，锁定 ${lockedIdleCount} 台，离线 ${offlineIdleCount} 台`);
 
     if (!matchedDevice) {
       await updateBadge();
@@ -305,13 +306,14 @@ async function diagnoseFetch() {
   const availableDevices = idleDevices.filter(isAvailableDevice).map(normalizeDevice).sort(sortDevice);
   const idleCount = idleDevices.length;
   const lockedIdleCount = idleDevices.filter(isLockedDevice).length;
+  const offlineIdleCount = idleDevices.filter((device) => !isOnlineDevice(device)).length;
   await patchRuntime({
-    lastStatus: `诊断通过：设备 ${devices.length} 台，空闲 ${idleCount} 台，锁定 ${lockedIdleCount} 台`,
+    lastStatus: `诊断通过：设备 ${devices.length} 台，空闲 ${idleCount} 台，锁定 ${lockedIdleCount} 台，离线 ${offlineIdleCount} 台`,
     lastDevices: availableDevices,
     matchedDevice: null,
     lastError: ""
   });
-  await appendLog("info", `诊断通过：Success=${payload.Success || "-"}，设备 ${devices.length} 台，空闲 ${idleCount} 台，可提交 ${availableDevices.length} 台，锁定 ${lockedIdleCount} 台`);
+  await appendLog("info", `诊断通过：Success=${payload.Success || "-"}，设备 ${devices.length} 台，空闲 ${idleCount} 台，可提交 ${availableDevices.length} 台，锁定 ${lockedIdleCount} 台，离线 ${offlineIdleCount} 台`);
 }
 
 function isIdleDevice(device) {
@@ -320,7 +322,11 @@ function isIdleDevice(device) {
 }
 
 function isAvailableDevice(device) {
-  return isIdleDevice(device) && !isLockedDevice(device);
+  return isIdleDevice(device) && isOnlineDevice(device) && !isLockedDevice(device);
+}
+
+function isOnlineDevice(device) {
+  return String(device?.k_status || "").trim() === "0";
 }
 
 function isLockedDevice(device) {
@@ -342,6 +348,7 @@ function normalizeDevice(device) {
     id: String(device.ID || device.deviceId || "").trim(),
     title: String(device.deviceTitle || device.title || device.ID || "未知设备").trim(),
     status: String(device.kdqzt || "").trim(),
+    kStatus: String(device.k_status || "").trim(),
     customer: String(device.Customer || "").trim(),
     orderType: String(device.ordertype || "").trim(),
     power: String(device.hfb || "").trim(),
@@ -391,6 +398,9 @@ async function claimDevice(device, { source }) {
   }
   if (target.locked || isLockedDevice(target.raw || target)) {
     throw new Error(`设备已锁定，禁止提交：${target.title || target.id}`);
+  }
+  if (!isOnlineDevice(target.raw || target)) {
+    throw new Error(`设备未在线或心跳异常，禁止提交：${target.title || target.id} · k_status=${target.kStatus || "-"}`);
   }
   if (!settings.roomCode) {
     throw new Error("roomCode 不能为空");
